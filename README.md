@@ -9,22 +9,12 @@ git clone https://github.com/aroess/mx-editor
 cd mx-editor
 make -B
 ./mx my_file
-# cp mx ~/bin
+# If you are brave
+# cp mx /usr/bin
 ```
-
-### Editing/"Save as" a new file ###
-A [minibuffer](https://www.gnu.org/software/emacs/manual/html_node/emacs/Minibuffer.html) has yet to be implemented. Because of this ```mx``` expects a valid file path as first parameter. To edit a fresh file you first have to ```touch``` it:
-
-```
-touch new_file && mx new_file
-```
-
-Also as of now you cannot open a file and save it with a different file name.
-
 
 ### Screenshot ###
 ![screenshot](https://raw.githubusercontent.com/aroess/mx-editor/master/screenshot.png "Mx editing its own source code")
-
 
 ### Key bindings ###
 
@@ -33,6 +23,7 @@ Also as of now you cannot open a file and save it with a different file name.
 | ```C-x C-c``` | Exit mx |
 | ```C-x C-s``` | Save document |
 | ```C-x =``` | Print info on cursor position |
+|``` C-g``` | Exit minibuffer |
 | ```C-f``` | Forward char |
 |``` C-b``` | Backward char |
 |``` M-f``` | Forward word |
@@ -41,6 +32,7 @@ Also as of now you cannot open a file and save it with a different file name.
 |``` C-e``` | Move to end of line |
 |``` C-n``` | Move to next line |
 |``` C-p``` | Move to previous line |
+|``` M-g``` | Goto line |
 |``` C-v``` | Page down |
 |``` M-v``` | Page up |
 |``` C-l``` | Center cursor |
@@ -50,3 +42,8 @@ Also as of now you cannot open a file and save it with a different file name.
 |``` RET``` | Insert newline |
 |``` BACKSPACE``` | Delete char backwards / delete line |
 | otherwise | insert self |
+
+### TODO ###
+- "Save as" function
+- "Undo" function
+- incremental forward/backward search

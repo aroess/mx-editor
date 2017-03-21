@@ -12,7 +12,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with mx.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -27,10 +27,8 @@ void win_resize_handler(int sig) {
 }
 
 int main (int argc, char *argv[]) {
-    
-    if (argc < 2)
-        die("No file to read"); 
-    if(access(argv[1], R_OK) == -1)
+
+    if(argc > 1 && access(argv[1], R_OK) == -1)
         die("Could not read input file");
     
     setlocale (LC_ALL, "");
@@ -61,8 +59,8 @@ int main (int argc, char *argv[]) {
     char ctrl_x_modifier = FALSE;
     char alt_modifier    = FALSE;
     
-    char status_message[80];
-    memset(status_message, 0, 80);
+    char message[MINIBUFFER_LIMIT];
+    memset(message, 0, MINIBUFFER_LIMIT);
     
     /* array of function pointers of return type readline* 
      * CTRL + 'a' = -96 + 97 = 1
@@ -91,21 +89,39 @@ int main (int argc, char *argv[]) {
     keybinding_alt [KEY_CTRL + 'v'] = editor_page_up;
     
     /* init container */
-    con.current_row = 0;
-    con.max_row     = 1;
-    con.hpadding    = 0;
-    con.vpadding    = 0;
-    con.row_length  = ROW_BLOCK_SIZE;
-    con.rows        = malloc(sizeof(struct readline) * ROW_BLOCK_SIZE);
-
-    readline yank_line;
+    con.current_row     = 0;
+    con.max_row         = 1;
+    con.hpadding        = 0;
+    con.vpadding        = 0;
+    con.row_length      = ROW_BLOCK_SIZE;
+    con.rows            = malloc(sizeof(struct readline) * ROW_BLOCK_SIZE);
+    con.minibuffer_mode = FALSE;
+  
+    /* init yank line */
+    readline  yank_line;
     readline *yank_line_pointer = &yank_line;
-    yank_line_pointer->buffer = NULL;
+    yank_line_pointer->buffer   = NULL;
+
+    /* init minibuffer */
+    readline  minibuffer;
+    readline *minibuffer_pointer = &minibuffer;
+    int       save_row;
+    int       func_id;
+
+    /* array of function pointers to minibuffer callback functions */
+    void (*minibuffer_callback[2])(container*, char[]);
+    minibuffer_callback[GOTO_FUNC] = editor_goto_line;
+    minibuffer_callback[SAVE_FUNC] = editor_save_file;    
     
     /* read input file */
-    editor_load_file(&con, argv[1]);
-    con.current_row = 0; 
-    row_pointer = &con.rows[con.current_row];
+    if (argc > 1) {
+        editor_load_file(&con, argv[1]);
+        con.current_row = 0; 
+        row_pointer = &con.rows[con.current_row];
+    } else {
+        row_pointer = &con.rows[con.current_row];
+        make_new_row(row_pointer);
+    }
 
     infobar_print(&con, "Welcome to mx! Press C-x C-c to quit.\0"); 
     signal(SIGWINCH, win_resize_handler);
@@ -114,6 +130,8 @@ int main (int argc, char *argv[]) {
     while ((unichar = getwchar())) {     
         if (WIN_RESIZED) {
             screen_redraw(&con, WHOLE);
+            if (con.minibuffer_mode)
+                minibuffer_redraw(&con, row_pointer);
             WIN_RESIZED = FALSE;
         }  
         if (alt_modifier) {
@@ -123,7 +141,16 @@ int main (int argc, char *argv[]) {
                     break;
                 case '>':
                     row_pointer = editor_goto_end_of_document(&con, row_pointer, unichar);
-                    break;             
+                    break;
+                case 'g':
+                    infobar_print(&con, "GOTO LINE:");
+                    make_new_row(minibuffer_pointer);
+                    save_row = con.current_row;
+                    activate_minibuffer(&con, minibuffer_pointer, 11);
+                    row_pointer = minibuffer_pointer;
+                    con.minibuffer_mode = TRUE;
+                    func_id = GOTO_FUNC;
+                    break;
                 default:
                     unichar = KEY_CTRL + unichar;
                     if ((unichar > 0) && (unichar <= 26)) {
@@ -136,7 +163,7 @@ int main (int argc, char *argv[]) {
             alt_modifier = FALSE;
             continue;
         }
-        infobar_erase(&con);
+        if (con.minibuffer_mode == FALSE) infobar_erase(&con);
         if (ctrl_x_modifier) {
             switch (unichar) {
                 case KEY_CTRL + 'c':
@@ -147,11 +174,21 @@ int main (int argc, char *argv[]) {
                     }
                     break;
                 case KEY_CTRL + 's':
-                    editor_save_file(&con, argv[1]);
+                    if (argc > 1) {
+                        editor_save_file(&con, argv[1]);
+                    } else {
+                        infobar_print(&con, "FILENAME:");
+                        make_new_row(minibuffer_pointer);
+                        save_row = con.current_row;
+                        activate_minibuffer(&con, minibuffer_pointer, 10);
+                        row_pointer = minibuffer_pointer;
+                        con.minibuffer_mode = TRUE;
+                        func_id = SAVE_FUNC;
+                    }
                     break;
                 case '=':
                     infobar_print_position(&con);
-                    break;                    
+                    break;
                 default:
                     infobar_print(&con, "unknown keybinding\0");
             }
@@ -163,6 +200,7 @@ int main (int argc, char *argv[]) {
                 alt_modifier = TRUE;
                 break;       
             case KEY_CTRL + 'x':
+                if (con.minibuffer_mode) break;
                 ctrl_x_modifier = TRUE;
                 infobar_print(&con, "C-x\0");
                 break;
@@ -170,7 +208,32 @@ int main (int argc, char *argv[]) {
                 row_pointer = editor_delete_char(&con, row_pointer, unichar);
                 break;
             case KEY_ENTER:
-                row_pointer = editor_newline(&con, row_pointer);
+                if (con.minibuffer_mode) {
+                    deactivate_minibuffer(&con, row_pointer, save_row);
+                    con.minibuffer_mode = FALSE;
+                    if (minibuffer_pointer->line_end > MINIBUFFER_LIMIT) {
+                        infobar_print(&con, "ERROR: Minibuffer overflow\0");
+                        break;
+                    }
+                    sprintf(message,
+                            "%ls",
+                            &minibuffer_pointer->buffer[minibuffer_pointer->margin]
+                            );            
+                    (*minibuffer_callback[func_id])(&con, message);
+                    row_pointer = &con.rows[con.current_row];
+                    free(minibuffer_pointer->buffer);
+                } else {
+                    row_pointer = editor_newline(&con, row_pointer);
+                }
+                break;
+            case KEY_CTRL + 'g':
+                if (con.minibuffer_mode) {
+                    deactivate_minibuffer(&con, row_pointer, save_row);
+                    free(minibuffer_pointer->buffer);
+                    row_pointer = &con.rows[con.current_row];
+                    con.minibuffer_mode = FALSE;
+                    infobar_print(&con, "Quit\0");
+                }
                 break;
             case KEY_TAB:
                 editor_insert_tab(&con, row_pointer);
@@ -187,10 +250,12 @@ int main (int argc, char *argv[]) {
             default:
                 /* keybindings with ctrl modifier */
                 if ((unichar > 0) && (unichar <= 26)) {
-                    if (keybinding_ctrl[unichar] != NULL) 
+                    if (keybinding_ctrl[unichar] != NULL) { 
                         row_pointer = (*keybinding_ctrl[unichar])(&con, row_pointer, unichar);
-                    else
-                        infobar_print(&con, "unknown keybinding\0");
+                    } else {
+                        if (!con.minibuffer_mode)
+                            infobar_print(&con, "unknown keybinding\0");
+                    }
                     continue;            
                 }
                 /* no modifier */
@@ -217,9 +282,7 @@ int main (int argc, char *argv[]) {
         printf("win width %d\n",  w.ws_col);
         printf("win height %d\n",  w.ws_row);    
         printf("row_length %d\n",  con.row_length);
-        printf("yank line: ");
-        for (short i = 0; i < yank_line_pointer->line_end; i++) printf("%d ", yank_line_pointer->buffer[i]);
-        printf("\n");
+        printf("margin %d\n",  MARGIN);
     }     
     return 0;
 }

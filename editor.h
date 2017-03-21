@@ -12,7 +12,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with mx.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef EDITOR_GUARD
@@ -32,15 +32,17 @@
 
 #define DEBUG FALSE
 
-#define LINE_BLOCK_SIZE 100
-#define ROW_BLOCK_SIZE  100 /* has to be greater than 1 */
+#define LINE_BLOCK_SIZE  100
+#define ROW_BLOCK_SIZE   100 /* has to be greater than 1 */
+#define MINIBUFFER_LIMIT 300
 
 #define LINE_LEN  row_pointer->line_length
 #define CURSOR    row_pointer->cursor
 #define LINE_END  row_pointer->line_end
+#define BUFFER    row_pointer->buffer
+#define MARGIN    row_pointer->margin
 #define CUR_ROW   con->current_row
 #define MAX_ROW   con->max_row
-#define BUFFER    row_pointer->buffer
 #define HPADDING  con->hpadding
 #define VPADDING  con->vpadding
 
@@ -75,12 +77,17 @@ enum draw_mode {
     LINE
 };
 
+enum callback_func {
+    GOTO_FUNC,
+    SAVE_FUNC
+};
 
 typedef struct readline {
     int     cursor;
     int     line_end;
     wint_t *buffer;
     int     line_length;
+    int     margin;
 } readline;
 
 typedef struct container {
@@ -90,6 +97,7 @@ typedef struct container {
     int       row_length; 
     int       hpadding;
     int       vpadding;
+    char      minibuffer_mode;
 } container;
 
 struct winsize w;
@@ -125,5 +133,10 @@ readline* editor_page_center_cursor         (container*, readline*, wint_t);
 readline* editor_kill_to_end_of_line        (container*, readline*, readline*);
 readline* editor_kill_to_beginning_of_line  (container*, readline*, readline*);
 readline* editor_yank_line                  (container*, readline*, readline*);
+
+void      activate_minibuffer               (container*, readline*, int);
+void      deactivate_minibuffer             (container*, readline*, int);
+void      minibuffer_redraw                 (container*, readline*);
+void      editor_goto_line                  (container*, char[]);
 
 #endif /* EDITOR_GUARD */

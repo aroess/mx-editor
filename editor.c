@@ -12,7 +12,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with mx.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "editor.h"
@@ -39,6 +39,7 @@ int get_window_height() {
 void make_new_row(readline *row_pointer) {
     CURSOR   = 0;
     LINE_END = 0;
+    MARGIN   = 0;
     LINE_LEN = LINE_BLOCK_SIZE;
     BUFFER   = calloc(LINE_LEN, sizeof(wint_t));
 }
@@ -94,7 +95,7 @@ void screen_redraw(container *con, enum draw_mode mode) {
     /* Don't read unallocated line buffers */
     if (max > MAX_ROW)
         max = MAX_ROW;
-    /* Make sure the whole tabs is printed on screen */
+    /* Make sure the whole tab is printed on screen */
     readline *row_pointer = &con->rows[con->current_row];
     if (HPADDING) 
         HPADDING = (CURSOR/TAB_STOP_WIDTH) * TAB_STOP_WIDTH;
@@ -103,7 +104,7 @@ void screen_redraw(container *con, enum draw_mode mode) {
     for (int i = start; i < max; i++) {
         screen_set_cursor(i, 0, HPADDING, VPADDING);
         ANSI_KILL_LINE;
-        if(con->rows[i].buffer != NULL) { 
+        if(con->rows[i].buffer != NULL) {
             for (int j = 0; j < get_window_width()-1; j++) {
                 if (j >= con->rows[i].line_end-HPADDING) break;
                 printf("%lc", con->rows[i].buffer[j+HPADDING]);
@@ -113,6 +114,16 @@ void screen_redraw(container *con, enum draw_mode mode) {
     /* erase last line */
     screen_set_cursor(MAX_ROW, 0, HPADDING, VPADDING);
     ANSI_KILL_LINE;
+}
+
+void minibuffer_redraw(container *con, readline *row_pointer) {
+    screen_set_cursor(get_window_height()-1, MARGIN, 0, 0);
+    ANSI_KILL_LINE;
+    for (int j = MARGIN; j < get_window_width()-1; j++) {
+        if (j >= LINE_END-HPADDING) break;
+        printf("%lc", BUFFER[j+HPADDING]);
+    }
+   
 }
 
 /*-----------------------------------------------  
@@ -200,6 +211,7 @@ readline *editor_newline(container *con, readline *row_pointer) {
 }
 
 readline* editor_insert_char(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode && unichar == 0xA) return row_pointer;
     /* with the current temios settings a window resize inserts the char -1, ignore this */
     if (unichar == -1) return row_pointer;
     /* If a tab character is encountered fill space until tab stop is reached */
@@ -221,10 +233,13 @@ readline* editor_insert_char(container *con, readline *row_pointer, wint_t unich
     if (LINE_END >= LINE_LEN) extend_row(row_pointer);
     buffer_shift_region_right(BUFFER, CUR_ROW, CURSOR, LINE_END);
     buffer_set_char(BUFFER, CURSOR, unichar);
-    if (CURSOR-HPADDING >= get_window_width() - 1) {
+    if (CURSOR-HPADDING >= get_window_width() - 1) { 
         HPADDING++;
-        screen_redraw(con, WHOLE);
-    }  else {
+        if (con->minibuffer_mode)
+            minibuffer_redraw(con, row_pointer);
+        else 
+            screen_redraw(con, WHOLE);
+    } else {
         screen_shift_region_right(BUFFER, CUR_ROW, CURSOR, LINE_END, HPADDING, VPADDING);
         screen_set_char(CUR_ROW, CURSOR, unichar, HPADDING, VPADDING);
     }
@@ -234,6 +249,7 @@ readline* editor_insert_char(container *con, readline *row_pointer, wint_t unich
 }
 
 readline* editor_insert_tab(container *con, readline *row_pointer) {
+    if (con->minibuffer_mode) return row_pointer;
     /* insert tab character, then fill buffer with TAB_PAD_CHAR until
      * next tab stop is reached  */
     int next_tab_stop = (CURSOR/TAB_STOP_WIDTH) * TAB_STOP_WIDTH + TAB_STOP_WIDTH;
@@ -246,6 +262,7 @@ readline* editor_insert_tab(container *con, readline *row_pointer) {
 }
 
 readline* editor_delete_char(container *con, readline *row_pointer, wint_t unichar) {
+    if (CURSOR == MARGIN && con->minibuffer_mode) return row_pointer;
     if (CURSOR == 0) return editor_delete_line(con, row_pointer, unichar);
     char redraw = FALSE;
     if (BUFFER[CURSOR-1] == TAB_PAD_CHAR) {
@@ -324,7 +341,8 @@ readline* editor_delete_line(container *con, readline *row_pointer, wint_t unich
     return row_pointer;
 }
 
-readline *editor_kill_to_end_of_line(container *con, readline *row_pointer, readline *yank_line_pointer) {    
+readline *editor_kill_to_end_of_line(container *con, readline *row_pointer, readline *yank_line_pointer) {
+    if (con->minibuffer_mode) return row_pointer;
     if (yank_line_pointer->buffer) free(yank_line_pointer->buffer);
     yank_line_pointer->buffer = malloc((LINE_END - CURSOR) * sizeof(wint_t));
     yank_line_pointer->line_end = 0; 
@@ -345,6 +363,7 @@ readline *editor_kill_to_end_of_line(container *con, readline *row_pointer, read
 }
 
 readline *editor_kill_to_beginning_of_line(container *con, readline *row_pointer, readline *yank_line_pointer) {
+    if (con->minibuffer_mode) return row_pointer;
     if (CURSOR == 0) return yank_line_pointer;
     if (yank_line_pointer->buffer) free(yank_line_pointer->buffer);
     yank_line_pointer->buffer = malloc(CURSOR * sizeof(wint_t));
@@ -371,6 +390,7 @@ readline *editor_kill_to_beginning_of_line(container *con, readline *row_pointer
 }
 
 readline *editor_yank_line(container *con, readline *row_pointer, readline *yank_line_pointer) {
+    if (con->minibuffer_mode) return row_pointer;
     for (int i = 0; i < yank_line_pointer->line_end; i++) {
         if (yank_line_pointer->buffer[i] == 0x9)
             editor_insert_tab(con, row_pointer);
@@ -390,7 +410,10 @@ readline* editor_forward_char(container *con, readline *row_pointer, wint_t unic
             CURSOR++;
             if (CURSOR-HPADDING >= get_window_width() - 1) {
                 HPADDING++;
-                screen_redraw(con, WHOLE);
+                if (con->minibuffer_mode)
+                    minibuffer_redraw(con, row_pointer);
+                else
+                    screen_redraw(con, WHOLE);
             }
             screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
         } while (BUFFER[CURSOR] == TAB_PAD_CHAR);
@@ -399,12 +422,15 @@ readline* editor_forward_char(container *con, readline *row_pointer, wint_t unic
 }
 
 readline* editor_backward_char(container *con, readline *row_pointer, wint_t unichar) {
-    if (CURSOR > 0) {
+    if (CURSOR > MARGIN) {
         do {
             CURSOR--;
-            if (CURSOR <= HPADDING - 1) {
+            if (CURSOR-MARGIN <= HPADDING - 1) {
                 HPADDING--;
-                screen_redraw(con, WHOLE);
+                if (con->minibuffer_mode)
+                    minibuffer_redraw(con, row_pointer);
+                else
+                    screen_redraw(con, WHOLE);
             }
             screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
         } while (BUFFER[CURSOR] == TAB_PAD_CHAR);
@@ -428,39 +454,51 @@ readline* editor_forward_word(container *con, readline *row_pointer, wint_t unic
     }
     if (CURSOR-HPADDING >= get_window_width() - 1) {
         HPADDING = LINE_END - get_window_width() + 1;
-        screen_redraw(con, WHOLE);
+        if (con->minibuffer_mode)
+            minibuffer_redraw(con, row_pointer);
+        else
+            screen_redraw(con, WHOLE);
     } 
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
 }
 
 readline* editor_backward_word(container *con, readline *row_pointer, wint_t unichar) {
+    if (CURSOR == LINE_END) CURSOR--;
     START:
     if (!buffer_is_space(BUFFER, CURSOR)) {
         while (!buffer_is_space(BUFFER, CURSOR)) { 
-            if (CURSOR == 0) break;
+            if (CURSOR == MARGIN) break;
             CURSOR--;
         }
     } else {
         while(buffer_is_space(BUFFER, CURSOR)) {
-            if (CURSOR == 0) break;
+            if (CURSOR == MARGIN) break;
             CURSOR--;
         }
-        goto START;
+        if (CURSOR != MARGIN) goto START;
     }
-    if (CURSOR <= HPADDING - 1) {
+    if (CURSOR-MARGIN <= HPADDING - 1) {
         HPADDING--;
-        screen_redraw(con, WHOLE);
+        if (con->minibuffer_mode) {
+            CURSOR = MARGIN+HPADDING; /* not as expected */
+            minibuffer_redraw(con, row_pointer);
+        } else {
+            screen_redraw(con, WHOLE);
+        }
     }
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
 }
 
 readline* editor_move_beginning_of_line(container *con, readline *row_pointer, wint_t unichar) {
-    CURSOR = 0;
+    CURSOR = MARGIN;
     if(HPADDING) {
         HPADDING = 0;
-        screen_redraw(con, WHOLE);
+        if (con->minibuffer_mode)
+            minibuffer_redraw(con, row_pointer);
+        else
+            screen_redraw(con, WHOLE);
     }
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
@@ -470,13 +508,17 @@ readline* editor_move_end_of_line(container *con, readline *row_pointer, wint_t 
     CURSOR = LINE_END;
     if (LINE_END > get_window_width()) {
         HPADDING = LINE_END - get_window_width() + 1;
-        screen_redraw(con, WHOLE);
+        if (con->minibuffer_mode)
+            minibuffer_redraw(con, row_pointer);
+        else
+            screen_redraw(con, WHOLE);      
     }
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
 }
 
 readline *editor_move_next_line(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     if (CUR_ROW == MAX_ROW - 1) return row_pointer;
     CUR_ROW++;
     row_pointer = &con->rows[CUR_ROW];
@@ -496,6 +538,7 @@ readline *editor_move_next_line(container *con, readline *row_pointer, wint_t un
 }
 
 readline *editor_move_previous_line(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     if (CUR_ROW == 0) return row_pointer;
     CUR_ROW--;
     row_pointer = &con->rows[CUR_ROW];
@@ -515,6 +558,7 @@ readline *editor_move_previous_line(container *con, readline *row_pointer, wint_
 }
 
 readline *editor_page_down(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     int next = CUR_ROW + get_window_height() - 1;
     if (next >= MAX_ROW) next = MAX_ROW - 1;
     CUR_ROW = next;
@@ -526,6 +570,7 @@ readline *editor_page_down(container *con, readline *row_pointer, wint_t unichar
 }
 
 readline *editor_page_up(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     int next = CUR_ROW - get_window_height() + 1;
     if (next < 0) next = 0;
     CUR_ROW = next;
@@ -537,6 +582,7 @@ readline *editor_page_up(container *con, readline *row_pointer, wint_t unichar) 
 }
 
 readline *editor_goto_beginning_of_document(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     CUR_ROW = 0;
     VPADDING = 0;
     CURSOR = 0;
@@ -547,6 +593,7 @@ readline *editor_goto_beginning_of_document(container *con, readline *row_pointe
 }
 
 readline *editor_goto_end_of_document(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     CUR_ROW = MAX_ROW - 1;
     VPADDING = CUR_ROW;
     CURSOR = 0;
@@ -555,11 +602,21 @@ readline *editor_goto_end_of_document(container *con, readline *row_pointer, win
     return row_pointer;
 }
 readline *editor_page_center_cursor(container *con, readline *row_pointer, wint_t unichar) {
+    if (con->minibuffer_mode) return row_pointer;
     VPADDING = CUR_ROW - get_window_height() / 2;
     if (VPADDING < 0) VPADDING = 0;
     screen_redraw(con, WHOLE);
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
+}
+
+void editor_goto_line(container *con, char message[]) {
+    int line_number = strtol(message, NULL, 10);
+    if (line_number == 0) return;
+    if (line_number < 1)       line_number = 1;
+    if (line_number > MAX_ROW) line_number = MAX_ROW;
+    con->current_row = line_number - 1;
+    editor_page_center_cursor(con, &con->rows[con->current_row], 0);
 }
 
 /*-----------------------------------------------  
@@ -568,15 +625,8 @@ readline *editor_page_center_cursor(container *con, readline *row_pointer, wint_
 
 void editor_save_file(container *con, char filename[]) {
     FILE *write_fp;
-    /* file can be written */
-    if(access(filename, W_OK ) != -1) {
-        write_fp = fopen(filename, "w, utf-8");
-        if(write_fp == NULL) {
-            infobar_error(con, "Could not write file");
-            return;
-        }
-    /* file cannot be written */
-    } else {
+    write_fp = fopen(filename, "w, utf-8");
+    if(write_fp == NULL) {
         infobar_error(con, "Could not write file");
         return;
     }
@@ -652,15 +702,15 @@ void editor_load_file(container *con, char filename[]) {
 
 void infobar_print(container *con, char status_message[]) {
     infobar_erase(con);
-    screen_set_cursor(get_window_height(), 0, 0, 0);
+    screen_set_cursor(get_window_height()-1, 0, 0, 0);
     ANSI_INVERT_COLOR;
-    printf("%.*s", get_window_width(), status_message);
+    printf("%.*s", get_window_width()-1, status_message);
     ANSI_REVERT_INVERT_COLOR;
     screen_set_cursor(con->current_row, con->rows[con->current_row].cursor,
                       con->hpadding, con->vpadding);
 }
 void infobar_error(container *con, char status_message[]) {
-    screen_set_cursor(get_window_height(), 0, 0, 0);
+    screen_set_cursor(get_window_height()-1, 0, 0, 0);
     ANSI_KILL_LINE;
     ANSI_INVERT_COLOR;
     if(errno) printf("ERROR: %.*s", get_window_width()-8, strerror(errno));
@@ -670,7 +720,7 @@ void infobar_error(container *con, char status_message[]) {
                       con->hpadding, con->vpadding);
 }
 void infobar_print_position(container *con) {
-    screen_set_cursor(get_window_height(), 0, 0, 0);
+    screen_set_cursor(get_window_height()-1, 0, 0, 0);
     readline *row_pointer = &con->rows[CUR_ROW];
     char message[80];
     sprintf(message, "CHAR: (%lc, %d, 0x%x) ROW: %d COLUMN: %d",
@@ -688,4 +738,23 @@ void infobar_erase(container *con) {
     ANSI_KILL_LINE;
     screen_set_cursor(con->current_row, con->rows[con->current_row].cursor,
                       con->hpadding, con->vpadding);
+}
+
+/*-----------------------------------------------  
+    minibuffer functions
+ -----------------------------------------------*/
+
+void activate_minibuffer(container *con, readline *row_pointer, int margin) {
+    MARGIN = margin;
+    CURSOR = margin;
+    LINE_END = margin;
+    screen_set_cursor(get_window_height()-1, margin, 0, 0);
+    CUR_ROW = get_window_height()-1;
+    ANSI_KILL_LINE;
+}
+
+void deactivate_minibuffer(container *con, readline *row_pointer, int save_row) {
+    CUR_ROW = save_row;
+    HPADDING = 0; /* todo */
+    infobar_erase(con);
 }
