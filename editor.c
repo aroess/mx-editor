@@ -675,7 +675,7 @@ void editor_load_file(container *con, char filename[]) {
             BUFFER[CURSOR] = unichar;
             CURSOR++;
             LINE_END++;
-            int next_tab_stop = (CURSOR/TAB_STOP_WIDTH) * TAB_STOP_WIDTH + TAB_STOP_WIDTH;
+            int next_tab_stop = ((CURSOR-1)/TAB_STOP_WIDTH) * TAB_STOP_WIDTH + TAB_STOP_WIDTH;
             for(int i = CURSOR; i < next_tab_stop; i++) {
                 BUFFER[CURSOR] = TAB_PAD_CHAR;
                 CURSOR++;
