@@ -46,4 +46,4 @@ make -B
 ### TODO ###
 - "Save as" function
 - "Undo" function
-- incremental forward/backward search
+- ~~incremental~~ forward/backward search

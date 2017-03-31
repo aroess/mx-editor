@@ -55,6 +55,7 @@
 #define KEY_ALT         27
 #define KEY_TAB          9
 #define KEY_ENTER       10
+#define BRACKETLEFT     91
 
 #define ANSI_RESET_SCREEN        printf("\033[2J\033[1;1H")
 #define ANSI_KILL_LINE           printf("\033[K")

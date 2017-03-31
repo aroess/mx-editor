@@ -133,9 +133,27 @@ int main (int argc, char *argv[]) {
             if (con.minibuffer_mode)
                 minibuffer_redraw(&con, row_pointer);
             WIN_RESIZED = FALSE;
-        }  
+        }
+        
         if (alt_modifier) {
             switch (unichar) {
+                case BRACKETLEFT:
+                    unichar = getwchar();
+                    switch (unichar) {
+                        case 'A':
+                            row_pointer = editor_move_previous_line(&con, row_pointer, unichar);
+                            break;
+                        case 'B':
+                            row_pointer = editor_move_next_line(&con, row_pointer, unichar);
+                            break;
+                        case 'C':
+                            row_pointer = editor_forward_char(&con, row_pointer, unichar);
+                            break;
+                        case 'D':
+                            row_pointer = editor_backward_char(&con, row_pointer, unichar);
+                            break;
+                    }
+                    break;
                 case '<':
                     row_pointer = editor_goto_beginning_of_document(&con, row_pointer, unichar);
                     break;

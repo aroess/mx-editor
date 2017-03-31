@@ -585,8 +585,8 @@ readline *editor_goto_beginning_of_document(container *con, readline *row_pointe
     if (con->minibuffer_mode) return row_pointer;
     CUR_ROW = 0;
     VPADDING = 0;
-    CURSOR = 0;
     row_pointer = &con->rows[CUR_ROW];
+    CURSOR = 0;
     screen_redraw(con, WHOLE);
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
@@ -596,8 +596,8 @@ readline *editor_goto_end_of_document(container *con, readline *row_pointer, win
     if (con->minibuffer_mode) return row_pointer;
     CUR_ROW = MAX_ROW - 1;
     VPADDING = CUR_ROW;
-    CURSOR = 0;
     row_pointer = &con->rows[CUR_ROW];
+    CURSOR = LINE_END;
     editor_page_center_cursor(con, row_pointer, unichar);
     return row_pointer;
 }
