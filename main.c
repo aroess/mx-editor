@@ -96,7 +96,9 @@ int main (int argc, char *argv[]) {
     con.row_length      = ROW_BLOCK_SIZE;
     con.rows            = malloc(sizeof(struct readline) * ROW_BLOCK_SIZE);
     con.minibuffer_mode = FALSE;
-  
+    con.temp_row        = 0;
+    con.buffer_filename = NULL;
+    
     /* init yank line */
     readline  yank_line;
     readline *yank_line_pointer = &yank_line;
@@ -105,16 +107,17 @@ int main (int argc, char *argv[]) {
     /* init minibuffer */
     readline  minibuffer;
     readline *minibuffer_pointer = &minibuffer;
-    int       save_row;
     int       func_id;
 
     /* array of function pointers to minibuffer callback functions */
     void (*minibuffer_callback[2])(container*, char[]);
-    minibuffer_callback[GOTO_FUNC] = editor_goto_line;
-    minibuffer_callback[SAVE_FUNC] = editor_save_file;    
+    minibuffer_callback[GOTO_FUNC]    = editor_goto_line;
+    minibuffer_callback[SAVE_FUNC]    = editor_save_file;
+    minibuffer_callback[SEARCHF_FUNC] = editor_search_forward;  
     
     /* read input file */
     if (argc > 1) {
+        con.buffer_filename = strdup(argv[1]);
         editor_load_file(&con, argv[1]);
         con.current_row = 0; 
         row_pointer = &con.rows[con.current_row];
@@ -129,12 +132,11 @@ int main (int argc, char *argv[]) {
     /* main loop */
     while ((unichar = getwchar())) {     
         if (WIN_RESIZED) {
-            screen_redraw(&con, WHOLE);
+            editor_page_center_cursor(&con, row_pointer, unichar);
             if (con.minibuffer_mode)
                 minibuffer_redraw(&con, row_pointer);
             WIN_RESIZED = FALSE;
         }
-        
         if (alt_modifier) {
             switch (unichar) {
                 case BRACKETLEFT:
@@ -161,9 +163,10 @@ int main (int argc, char *argv[]) {
                     row_pointer = editor_goto_end_of_document(&con, row_pointer, unichar);
                     break;
                 case 'g':
+                    if (con.minibuffer_mode) break;
                     infobar_print(&con, "GOTO LINE:");
                     make_new_row(minibuffer_pointer);
-                    save_row = con.current_row;
+                    con.temp_row = con.current_row;
                     activate_minibuffer(&con, minibuffer_pointer, 11);
                     row_pointer = minibuffer_pointer;
                     con.minibuffer_mode = TRUE;
@@ -192,12 +195,13 @@ int main (int argc, char *argv[]) {
                     }
                     break;
                 case KEY_CTRL + 's':
-                    if (argc > 1) {
-                        editor_save_file(&con, argv[1]);
+                    if (con.minibuffer_mode) break;
+                    if (con.buffer_filename != NULL) {
+                        editor_save_file(&con, con.buffer_filename);
                     } else {
                         infobar_print(&con, "FILENAME:");
                         make_new_row(minibuffer_pointer);
-                        save_row = con.current_row;
+                        con.temp_row = con.current_row;
                         activate_minibuffer(&con, minibuffer_pointer, 10);
                         row_pointer = minibuffer_pointer;
                         con.minibuffer_mode = TRUE;
@@ -227,16 +231,16 @@ int main (int argc, char *argv[]) {
                 break;
             case KEY_ENTER:
                 if (con.minibuffer_mode) {
-                    deactivate_minibuffer(&con, row_pointer, save_row);
-                    con.minibuffer_mode = FALSE;
+                    deactivate_minibuffer(&con, row_pointer);
                     if (minibuffer_pointer->line_end > MINIBUFFER_LIMIT) {
                         infobar_print(&con, "ERROR: Minibuffer overflow\0");
                         break;
                     }
-                    sprintf(message,
-                            "%ls",
-                            &minibuffer_pointer->buffer[minibuffer_pointer->margin]
-                            );            
+                    sprintf(
+                        message,
+                        "%ls",
+                        &minibuffer_pointer->buffer[minibuffer_pointer->margin]
+                    );
                     (*minibuffer_callback[func_id])(&con, message);
                     row_pointer = &con.rows[con.current_row];
                     free(minibuffer_pointer->buffer);
@@ -246,10 +250,9 @@ int main (int argc, char *argv[]) {
                 break;
             case KEY_CTRL + 'g':
                 if (con.minibuffer_mode) {
-                    deactivate_minibuffer(&con, row_pointer, save_row);
+                    deactivate_minibuffer(&con, row_pointer);
                     free(minibuffer_pointer->buffer);
                     row_pointer = &con.rows[con.current_row];
-                    con.minibuffer_mode = FALSE;
                     infobar_print(&con, "Quit\0");
                 }
                 break;
@@ -265,6 +268,13 @@ int main (int argc, char *argv[]) {
             case KEY_CTRL + 'y':
                 row_pointer = editor_yank_line(&con, row_pointer, yank_line_pointer);
                 break;
+            case KEY_CTRL + 's':
+                if (con.minibuffer_mode) break;
+                infobar_print(&con, "SEARCH FORWARD:");
+                make_new_row(minibuffer_pointer);
+                activate_minibuffer(&con, minibuffer_pointer, 16);
+                row_pointer = minibuffer_pointer;
+                func_id = SEARCHF_FUNC;                
             default:
                 /* keybindings with ctrl modifier */
                 if ((unichar > 0) && (unichar <= 26)) {
@@ -301,6 +311,8 @@ int main (int argc, char *argv[]) {
         printf("win height %d\n",  w.ws_row);    
         printf("row_length %d\n",  con.row_length);
         printf("margin %d\n",  MARGIN);
+        printf("temp_row %d\n",  con.temp_row);
+        printf("buffer_filename %s\n",  con.buffer_filename);        
     }     
     return 0;
 }

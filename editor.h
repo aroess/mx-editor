@@ -24,6 +24,7 @@
 #include <stdlib.h> 
 #include <string.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <termios.h>
 #include <errno.h>
 
@@ -65,7 +66,7 @@
 /* Has to correlate to the tab width of the terminal
  * but this is not guaranteed if the user has set
  * the terminal tab with by himself. Should read
- * terminal tab width an set this value accordingly.
+ * terminal tab width and set this value accordingly.
  */
 #define TAB_STOP_WIDTH   8
 #define TAB_PAD_CHAR    -9
@@ -80,7 +81,8 @@ enum draw_mode {
 
 enum callback_func {
     GOTO_FUNC,
-    SAVE_FUNC
+    SAVE_FUNC,
+    SEARCHF_FUNC
 };
 
 typedef struct readline {
@@ -99,6 +101,9 @@ typedef struct container {
     int       hpadding;
     int       vpadding;
     char      minibuffer_mode;
+    int       temp_row;
+    int       temp_hpadding;
+    char     *buffer_filename;
 } container;
 
 struct winsize w;
@@ -136,8 +141,10 @@ readline* editor_kill_to_beginning_of_line  (container*, readline*, readline*);
 readline* editor_yank_line                  (container*, readline*, readline*);
 
 void      activate_minibuffer               (container*, readline*, int);
-void      deactivate_minibuffer             (container*, readline*, int);
+void      deactivate_minibuffer             (container*, readline*);
 void      minibuffer_redraw                 (container*, readline*);
 void      editor_goto_line                  (container*, char[]);
+void      editor_search_forward             (container*, char[]);
+char*     strdup                            (const char*);
 
 #endif /* EDITOR_GUARD */

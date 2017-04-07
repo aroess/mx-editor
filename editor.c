@@ -55,6 +55,13 @@ void extend_container(container *con) {
     con->rows = realloc(con->rows, sizeof(struct readline) * con->row_length);
 }
 
+char *strdup (const char *s) {
+    char *d = malloc (strlen (s) + 1);   // Space for length plus nul
+    if (d == NULL) return NULL;          // No memory
+    strcpy (d,s);                        // Copy the characters
+    return d;                            // Return the new string
+}
+
 /*-----------------------------------------------  
     low level functions altering the screen
  -----------------------------------------------*/
@@ -98,7 +105,7 @@ void screen_redraw(container *con, enum draw_mode mode) {
     /* Make sure the whole tab is printed on screen */
     readline *row_pointer = &con->rows[con->current_row];
     if (HPADDING) 
-        HPADDING = (CURSOR/TAB_STOP_WIDTH) * TAB_STOP_WIDTH;
+        HPADDING = ((CURSOR-1)/TAB_STOP_WIDTH) * TAB_STOP_WIDTH;
     if (LINE_END + HPADDING >= LINE_LEN) extend_row(row_pointer);
     if (mode == WHOLE) ANSI_RESET_SCREEN;
     for (int i = start; i < max; i++) {
@@ -506,7 +513,7 @@ readline* editor_move_beginning_of_line(container *con, readline *row_pointer, w
 
 readline* editor_move_end_of_line(container *con, readline *row_pointer, wint_t unichar) {
     CURSOR = LINE_END;
-    if (LINE_END > get_window_width()) {
+    if (LINE_END >= get_window_width()) {
         HPADDING = LINE_END - get_window_width() + 1;
         if (con->minibuffer_mode)
             minibuffer_redraw(con, row_pointer);
@@ -619,6 +626,43 @@ void editor_goto_line(container *con, char message[]) {
     editor_page_center_cursor(con, &con->rows[con->current_row], 0);
 }
 
+void editor_search_forward(container *con, char message[]) {
+    int char_count  = 0;
+    int cursor      = 0;
+    int message_len = 0;
+    readline *row_pointer;
+
+    /* convert char array to wide char array */
+    wchar_t wmessage[MINIBUFFER_LIMIT];
+    mbstowcs(wmessage, message, MINIBUFFER_LIMIT);
+    
+    /* get message length */
+    while(wmessage[char_count] != 0) char_count++;
+    message_len = char_count;
+    char_count = 0;
+    
+    for (int i = CUR_ROW; i < MAX_ROW; i++) {
+        row_pointer = &con->rows[i];
+        for(int j = (i == CUR_ROW) ? CURSOR+1 : 0; j < LINE_END; j++) {
+            if (towlower(BUFFER[j]) == towlower(wmessage[char_count])) {
+                if (char_count == 0) cursor = j;
+                char_count++;
+                if (char_count == message_len) {
+                    CUR_ROW = i;
+                    CURSOR  = cursor;
+                    infobar_print(con, "found\0");
+                    editor_page_center_cursor(con, row_pointer, 0);
+                    return;
+                }
+            } else {
+                char_count = 0;
+            }
+        }
+    }
+    infobar_print(con, "not found\0");
+}
+
+
 /*-----------------------------------------------  
     file operations
  -----------------------------------------------*/
@@ -639,6 +683,7 @@ void editor_save_file(container *con, char filename[]) {
         }
     }
     fclose(write_fp);
+    con->buffer_filename = strdup(filename);
     infobar_print(con, "document saved\0");
 }
 
@@ -748,13 +793,18 @@ void activate_minibuffer(container *con, readline *row_pointer, int margin) {
     MARGIN = margin;
     CURSOR = margin;
     LINE_END = margin;
+    con->temp_hpadding = HPADDING;
+    HPADDING = 0;
+    con->temp_row = CUR_ROW;
+    con->minibuffer_mode = TRUE;
     screen_set_cursor(get_window_height()-1, margin, 0, 0);
-    CUR_ROW = get_window_height()-1;
+    CUR_ROW = VPADDING + get_window_height()-1;
     ANSI_KILL_LINE;
 }
 
-void deactivate_minibuffer(container *con, readline *row_pointer, int save_row) {
-    CUR_ROW = save_row;
-    HPADDING = 0; /* todo */
+void deactivate_minibuffer(container *con, readline *row_pointer) {
+    CUR_ROW = con->temp_row;
+    HPADDING = con->temp_hpadding;
     infobar_erase(con);
+    con->minibuffer_mode = FALSE;
 }
