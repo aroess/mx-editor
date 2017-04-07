@@ -4,10 +4,10 @@ Mx is a minimalistic text editor with emacs keybindings. It depends only on the 
 
 ### Compiling and running (Ubuntu 16.04/Debian jesse) ###
 ```
-sudo apt install build-essential
+sudo apt install build-essential git
 git clone https://github.com/aroess/mx-editor
 cd mx-editor
-make -B
+make
 ./mx my_file
 # If you are brave
 # cp mx /usr/bin
@@ -32,6 +32,7 @@ make -B
 |``` C-e``` | Move to end of line |
 |``` C-n``` | Move to next line |
 |``` C-p``` | Move to previous line |
+|``` C-s``` | Search forward |
 |``` M-g``` | Goto line |
 |``` C-v``` | Page down |
 |``` M-v``` | Page up |
@@ -46,4 +47,4 @@ make -B
 ### TODO ###
 - "Save as" function
 - "Undo" function
-- ~~incremental~~ forward/backward search
+- ~~incremental~~ ~~forward~~/backward search
