@@ -76,16 +76,6 @@ void screen_set_char(int row, int cursor, wint_t c, int hpadding, int vpadding) 
     printf("%lc", c);
 }
 
-void screen_shift_region_right(wint_t buffer[], int row, int cursor, int line_end, int hpadding, int vpadding) {
-    for(int i = cursor + 1; i < line_end; i++)
-        screen_set_char(row, i, buffer[i], hpadding, vpadding);
-}
-
-void screen_shift_region_left(wint_t buffer[], int row, int cursor, int line_end, int hpadding, int vpadding) {
-    for(int i = cursor - 1; i < line_end - 1; i++)
-        screen_set_char(row, i, buffer[i], hpadding, vpadding);
-}
-
 void screen_redraw(container *con, enum draw_mode mode) {
     int start;
     int max = MAX_ROW;
@@ -247,8 +237,7 @@ readline* editor_insert_char(container *con, readline *row_pointer, wint_t unich
         else 
             screen_redraw(con, WHOLE);
     } else {
-        screen_shift_region_right(BUFFER, CUR_ROW, CURSOR, LINE_END, HPADDING, VPADDING);
-        screen_set_char(CUR_ROW, CURSOR, unichar, HPADDING, VPADDING);
+        screen_redraw(con, LINE);
     }
     CURSOR++;
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
@@ -289,8 +278,7 @@ readline* editor_delete_char(container *con, readline *row_pointer, wint_t unich
     } else if (redraw) {
         screen_redraw(con, LINE);
     } else {
-        screen_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END, HPADDING, VPADDING);
-        screen_set_char(CUR_ROW, LINE_END-1, ' ', HPADDING, VPADDING);
+        screen_redraw(con, LINE);
     }
     LINE_END--;
     CURSOR--;
@@ -311,9 +299,8 @@ readline* editor_delete_forward_char(container *con, readline *row_pointer, wint
         return row_pointer;
     }
     buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR+1, LINE_END+1);
-    screen_shift_region_left(BUFFER, CUR_ROW, CURSOR+1, LINE_END, HPADDING, VPADDING);
     LINE_END--;
-    screen_set_char(CUR_ROW, LINE_END, ' ', HPADDING, VPADDING);
+    screen_redraw(con, LINE);
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
     return row_pointer;
 }
