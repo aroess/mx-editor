@@ -237,7 +237,10 @@ readline* editor_insert_char(container *con, readline *row_pointer, wint_t unich
         else 
             screen_redraw(con, WHOLE);
     } else {
-        screen_redraw(con, LINE);
+        if (con->minibuffer_mode)
+            minibuffer_redraw(con, row_pointer);
+        else
+            screen_redraw(con, LINE);
     }
     CURSOR++;
     screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
@@ -260,7 +263,6 @@ readline* editor_insert_tab(container *con, readline *row_pointer) {
 readline* editor_delete_char(container *con, readline *row_pointer, wint_t unichar) {
     if (CURSOR == MARGIN && con->minibuffer_mode) return row_pointer;
     if (CURSOR == 0) return editor_delete_line(con, row_pointer, unichar);
-    char redraw = FALSE;
     if (BUFFER[CURSOR-1] == TAB_PAD_CHAR) {
         while (BUFFER[CURSOR-1] == TAB_PAD_CHAR) {
             buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END+1);
@@ -268,17 +270,17 @@ readline* editor_delete_char(container *con, readline *row_pointer, wint_t unich
             CURSOR--;
             LINE_END--;
         }
-        redraw = TRUE;
     }
     buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END+1);
     buffer_set_char(BUFFER, LINE_END, 0);
     if (CURSOR <= HPADDING - 1) {
         HPADDING--;
         screen_redraw(con, WHOLE);
-    } else if (redraw) {
-        screen_redraw(con, LINE);
     } else {
-        screen_redraw(con, LINE);
+        if (con->minibuffer_mode)
+            minibuffer_redraw(con, row_pointer);
+        else
+            screen_redraw(con, LINE);
     }
     LINE_END--;
     CURSOR--;

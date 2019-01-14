@@ -2,7 +2,7 @@
 
 Mx is a minimalistic text editor with emacs keybindings. It depends only on the GNU C core libraries. This is still experimental so backup your files before editing. It is licensed under the [GPLv3](https://www.gnu.org/licenses/gpl.html). Please refer to the LICENSE file for detailed information.
 
-### Compiling and running (Ubuntu 16.04/Debian jesse) ###
+### Compiling and running (Ubuntu 16.04 and 18.04/Debian jesse) ###
 ```
 sudo apt install build-essential git
 git clone https://github.com/aroess/mx-editor
