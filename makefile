@@ -1,6 +1,6 @@
 CC = cc
 
-CFLAGS = -Wall -std=c99 -fcommon
+CFLAGS = -Wall -std=c99
 
 SRCS = main.c editor.c
 MAIN = mx

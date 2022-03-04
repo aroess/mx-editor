@@ -110,7 +110,7 @@ int main (int argc, char *argv[]) {
     int       func_id;
 
     /* array of function pointers to minibuffer callback functions */
-    void (*minibuffer_callback[2])(container*, char[]);
+    void (*minibuffer_callback[3])(container*, char[]);
     minibuffer_callback[GOTO_FUNC]    = editor_goto_line;
     minibuffer_callback[SAVE_FUNC]    = editor_save_file;
     minibuffer_callback[SEARCHF_FUNC] = editor_search_forward;  
@@ -130,7 +130,8 @@ int main (int argc, char *argv[]) {
     signal(SIGWINCH, win_resize_handler);
     
     /* main loop */
-    while ((unichar = getwchar())) {     
+    while (1) {
+	    unichar = getwchar();
         if (WIN_RESIZED) {
             editor_page_center_cursor(&con, row_pointer, unichar);
             if (con.minibuffer_mode)
@@ -307,8 +308,8 @@ int main (int argc, char *argv[]) {
         printf("cursor = %d\n", CURSOR);
         printf("hpadding = %d\n", con.hpadding);
         printf("vpadding = %d\n", con.vpadding);
-        printf("win width %d\n",  w.ws_col);
-        printf("win height %d\n",  w.ws_row);    
+        /* printf("win width %d\n",  w.ws_col); */
+        /* printf("win height %d\n",  w.ws_row);     */
         printf("row_length %d\n",  con.row_length);
         printf("margin %d\n",  MARGIN);
         printf("temp_row %d\n",  con.temp_row);

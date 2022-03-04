@@ -106,8 +106,6 @@ typedef struct container {
     char     *buffer_filename;
 } container;
 
-struct winsize w;
-
 void      screen_redraw                     (container*, enum draw_mode);
 void      die                               (const char*);
 void      make_new_row                      (readline*);

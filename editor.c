@@ -17,6 +17,7 @@
 
 #include "editor.h"
 
+
 void die(const char *message) {
     if(errno) {
         perror(message);
@@ -25,6 +26,8 @@ void die(const char *message) {
     }
     exit(EXIT_FAILURE);
 }
+
+struct winsize w;
 
 int get_window_width() {
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
