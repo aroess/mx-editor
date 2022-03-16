@@ -340,7 +340,7 @@ readline* editor_delete_line(container *con, readline *row_pointer, wint_t unich
     return row_pointer;
 }
 
-readline *editor_kill_to_end_of_line(container *con, readline *row_pointer, readline *yank_line_pointer) {
+readline* editor_kill_to_end_of_line(container *con, readline *row_pointer, readline *yank_line_pointer) {
     if (con->minibuffer_mode) return row_pointer;
     if (yank_line_pointer->buffer) free(yank_line_pointer->buffer);
     yank_line_pointer->buffer = malloc((LINE_END - CURSOR) * sizeof(wint_t));

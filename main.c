@@ -26,68 +26,137 @@ void win_resize_handler(int sig) {
     signal(SIGWINCH, win_resize_handler);
 }
 
+readline *handle_arrow_keys(container *con, readline *row_pointer)
+{
+    wint_t unichar = getwchar();
+    switch (unichar) {
+        case 'A':
+            return editor_move_previous_line(con, row_pointer, unichar);
+        case 'B':
+            return editor_move_next_line(con, row_pointer, unichar);
+        case 'C':
+            return editor_forward_char(con, row_pointer, unichar);
+        case 'D':
+            return editor_backward_char(con, row_pointer, unichar);
+    }
+    return row_pointer;
+}
+
+readline *handle_goto(container *con, readline *row_pointer,
+                      readline *minibuffer_pointer)
+{
+    if (con->minibuffer_mode) return row_pointer;
+    infobar_print(con, "GOTO LINE:");
+    make_new_row(minibuffer_pointer);
+    con->temp_row = con->current_row;
+    activate_minibuffer(con, minibuffer_pointer, 11);
+    row_pointer = minibuffer_pointer;
+    con->minibuffer_mode = TRUE;
+    return row_pointer;
+}
+
+readline *handle_save (container *con, readline *row_pointer,
+                      readline *minibuffer_pointer)
+{
+    if (con->minibuffer_mode) return row_pointer;
+    if (con->buffer_filename != NULL) {
+        editor_save_file(con, con->buffer_filename);
+        return row_pointer;
+    } else {
+        infobar_print(con, "FILENAME:");
+        make_new_row(minibuffer_pointer);
+        con->temp_row = con->current_row;
+        activate_minibuffer(con, minibuffer_pointer, 10);
+        row_pointer = minibuffer_pointer;
+        con->minibuffer_mode = TRUE;
+        return row_pointer;
+    }
+}
+
+readline *handle_search_forward (container *con, readline *row_pointer,
+                      readline *minibuffer_pointer)
+{
+    if (con->minibuffer_mode) return row_pointer;
+    infobar_print(con, "SEARCH FORWARD:");
+    make_new_row(minibuffer_pointer);
+    activate_minibuffer(con, minibuffer_pointer, 16);
+    return minibuffer_pointer;
+}
+
+readline *handle_cancel (container *con, readline *row_pointer,
+                         readline *minibuffer_pointer)
+{
+    if (con->minibuffer_mode) {
+        deactivate_minibuffer(con, row_pointer);
+        free(minibuffer_pointer->buffer);
+        infobar_print(con, "Quit\0");
+        return &(con->rows[con->current_row]);
+    }
+    return row_pointer;
+}
+
 int main (int argc, char *argv[]) {
 
     if(argc > 1 && access(argv[1], R_OK) == -1)
         die("Could not read input file");
-    
+
     setlocale (LC_ALL, "");
-    
+
     /* save terminal terminal parameters */
     static struct termios oldt, newt;
     tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
-    
+
     /*  set terminal to raw mode
      *  ICANON    input is not buffered
      *  ECHO      don't write input to screen
-     *  ISIG      ignore control signals 
+     *  ISIG      ignore control signals
      *  VMIN      number of characters to read
-     *  VTIME     wait indefinitely 
-     */  
+     *  VTIME     wait indefinitely
+     */
     newt.c_iflag&= ~(ISTRIP | INLCR | IXON | IXANY | IXOFF);
     newt.c_lflag &= ~(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHONL);
     newt.c_cc[VMIN] = 1;
     newt.c_cc[VTIME] = 0;
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);   
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
     ANSI_RESET_SCREEN;
-    
+
     wint_t unichar;        /* holds multibyte characters */
     container con;         /* container that keeps tracks of readlines */
     readline *row_pointer; /* pointer to current readline */
 
     char ctrl_x_modifier = FALSE;
     char alt_modifier    = FALSE;
-    
+
     char message[MINIBUFFER_LIMIT];
     memset(message, 0, MINIBUFFER_LIMIT);
-    
-    /* array of function pointers of return type readline* 
+
+    /* array of function pointers of return type readline*
      * CTRL + 'a' = -96 + 97 = 1
      * array index 0 will be not used! */
     readline* (*keybinding_ctrl[27])(container*, readline*, wint_t);
-    readline* (*keybinding_alt [27])(container*, readline*, wint_t);    
-    
+    readline* (*keybinding_alt [27])(container*, readline*, wint_t);
+
     /* init with NULL pointers */
     for (short i = 0; i < 27; i++) {
         keybinding_ctrl[i] = NULL;
         keybinding_alt [i] = NULL;
     }
-    
+
     /* define keybindings */
     keybinding_ctrl[KEY_CTRL + 'a'] = editor_move_beginning_of_line;
-    keybinding_ctrl[KEY_CTRL + 'e'] = editor_move_end_of_line;   
+    keybinding_ctrl[KEY_CTRL + 'e'] = editor_move_end_of_line;
     keybinding_ctrl[KEY_CTRL + 'd'] = editor_delete_forward_char;
     keybinding_ctrl[KEY_CTRL + 'f'] = editor_forward_char;
     keybinding_ctrl[KEY_CTRL + 'b'] = editor_backward_char;
     keybinding_ctrl[KEY_CTRL + 'n'] = editor_move_next_line;
-    keybinding_ctrl[KEY_CTRL + 'p'] = editor_move_previous_line;    
+    keybinding_ctrl[KEY_CTRL + 'p'] = editor_move_previous_line;
     keybinding_ctrl[KEY_CTRL + 'v'] = editor_page_down;
     keybinding_ctrl[KEY_CTRL + 'l'] = editor_page_center_cursor;
     keybinding_alt [KEY_CTRL + 'f'] = editor_forward_word;
     keybinding_alt [KEY_CTRL + 'b'] = editor_backward_word;
     keybinding_alt [KEY_CTRL + 'v'] = editor_page_up;
-    
+
     /* init container */
     con.current_row     = 0;
     con.max_row         = 1;
@@ -98,7 +167,7 @@ int main (int argc, char *argv[]) {
     con.minibuffer_mode = FALSE;
     con.temp_row        = 0;
     con.buffer_filename = NULL;
-    
+
     /* init yank line */
     readline  yank_line;
     readline *yank_line_pointer = &yank_line;
@@ -113,25 +182,25 @@ int main (int argc, char *argv[]) {
     void (*minibuffer_callback[3])(container*, char[]);
     minibuffer_callback[GOTO_FUNC]    = editor_goto_line;
     minibuffer_callback[SAVE_FUNC]    = editor_save_file;
-    minibuffer_callback[SEARCHF_FUNC] = editor_search_forward;  
-    
+    minibuffer_callback[SEARCHF_FUNC] = editor_search_forward;
+
     /* read input file */
     if (argc > 1) {
         con.buffer_filename = strdup(argv[1]);
         editor_load_file(&con, argv[1]);
-        con.current_row = 0; 
+        con.current_row = 0;
         row_pointer = &con.rows[con.current_row];
     } else {
         row_pointer = &con.rows[con.current_row];
         make_new_row(row_pointer);
     }
 
-    infobar_print(&con, "Welcome to mx! Press C-x C-c to quit.\0"); 
+    infobar_print(&con, "Welcome to mx! Press C-x C-c to quit.\0");
     signal(SIGWINCH, win_resize_handler);
-    
+
     /* main loop */
     while (1) {
-	    unichar = getwchar();
+        unichar = getwchar();
         if (WIN_RESIZED) {
             editor_page_center_cursor(&con, row_pointer, unichar);
             if (con.minibuffer_mode)
@@ -141,43 +210,27 @@ int main (int argc, char *argv[]) {
         if (alt_modifier) {
             switch (unichar) {
                 case BRACKETLEFT:
-                    unichar = getwchar();
-                    switch (unichar) {
-                        case 'A':
-                            row_pointer = editor_move_previous_line(&con, row_pointer, unichar);
-                            break;
-                        case 'B':
-                            row_pointer = editor_move_next_line(&con, row_pointer, unichar);
-                            break;
-                        case 'C':
-                            row_pointer = editor_forward_char(&con, row_pointer, unichar);
-                            break;
-                        case 'D':
-                            row_pointer = editor_backward_char(&con, row_pointer, unichar);
-                            break;
-                    }
+                    row_pointer = handle_arrow_keys(&con, row_pointer);
                     break;
                 case '<':
-                    row_pointer = editor_goto_beginning_of_document(&con, row_pointer, unichar);
+                    row_pointer = editor_goto_beginning_of_document(
+                            &con, row_pointer, unichar);
                     break;
                 case '>':
-                    row_pointer = editor_goto_end_of_document(&con, row_pointer, unichar);
+                    row_pointer = editor_goto_end_of_document(
+                            &con, row_pointer, unichar);
                     break;
                 case 'g':
-                    if (con.minibuffer_mode) break;
-                    infobar_print(&con, "GOTO LINE:");
-                    make_new_row(minibuffer_pointer);
-                    con.temp_row = con.current_row;
-                    activate_minibuffer(&con, minibuffer_pointer, 11);
-                    row_pointer = minibuffer_pointer;
-                    con.minibuffer_mode = TRUE;
+                    row_pointer = handle_goto(&con, row_pointer,
+                                              minibuffer_pointer);
                     func_id = GOTO_FUNC;
                     break;
                 default:
                     unichar = KEY_CTRL + unichar;
                     if ((unichar > 0) && (unichar <= 26)) {
-                        if (keybinding_alt[unichar] != NULL) 
-                            row_pointer = (*keybinding_alt[unichar])(&con, row_pointer, unichar);
+                        if (keybinding_alt[unichar] != NULL)
+                            row_pointer = (*keybinding_alt[unichar])(
+                                    &con, row_pointer, unichar);
                     } else {
                         infobar_print(&con, "unknown keybinding\0");
                     }
@@ -190,24 +243,15 @@ int main (int argc, char *argv[]) {
             switch (unichar) {
                 case KEY_CTRL + 'c':
                     infobar_print(&con, "Really quit? (y/n)\0");
-                    while ((unichar = getwchar())) { 
+                    while ((unichar = getwchar())) {
                         if (unichar == 'y') goto QUIT;
                         if (unichar == 'n') { infobar_erase(&con); break; }
                     }
                     break;
                 case KEY_CTRL + 's':
-                    if (con.minibuffer_mode) break;
-                    if (con.buffer_filename != NULL) {
-                        editor_save_file(&con, con.buffer_filename);
-                    } else {
-                        infobar_print(&con, "FILENAME:");
-                        make_new_row(minibuffer_pointer);
-                        con.temp_row = con.current_row;
-                        activate_minibuffer(&con, minibuffer_pointer, 10);
-                        row_pointer = minibuffer_pointer;
-                        con.minibuffer_mode = TRUE;
-                        func_id = SAVE_FUNC;
-                    }
+                    row_pointer = handle_save(&con, row_pointer,
+                                              minibuffer_pointer);
+                    func_id = SAVE_FUNC;
                     break;
                 case '=':
                     infobar_print_position(&con);
@@ -217,11 +261,11 @@ int main (int argc, char *argv[]) {
             }
             ctrl_x_modifier = FALSE;
             continue;
-        }            
+        }
         switch (unichar) {
             case KEY_ALT:
                 alt_modifier = TRUE;
-                break;       
+                break;
             case KEY_CTRL + 'x':
                 if (con.minibuffer_mode) break;
                 ctrl_x_modifier = TRUE;
@@ -250,48 +294,45 @@ int main (int argc, char *argv[]) {
                 }
                 break;
             case KEY_CTRL + 'g':
-                if (con.minibuffer_mode) {
-                    deactivate_minibuffer(&con, row_pointer);
-                    free(minibuffer_pointer->buffer);
-                    row_pointer = &con.rows[con.current_row];
-                    infobar_print(&con, "Quit\0");
-                }
+                row_pointer = handle_cancel(&con, row_pointer,
+                                            minibuffer_pointer);
                 break;
             case KEY_TAB:
                 editor_insert_tab(&con, row_pointer);
                 break;
             case KEY_CTRL + 'k':
-                yank_line_pointer = editor_kill_to_end_of_line(&con, row_pointer, yank_line_pointer);
+                yank_line_pointer = editor_kill_to_end_of_line(
+                        &con, row_pointer, yank_line_pointer);
                 break;
             case KEY_CTRL + 'u':
-                yank_line_pointer = editor_kill_to_beginning_of_line(&con, row_pointer, yank_line_pointer);
+                yank_line_pointer = editor_kill_to_beginning_of_line(
+                        &con, row_pointer, yank_line_pointer);
                 break;
             case KEY_CTRL + 'y':
-                row_pointer = editor_yank_line(&con, row_pointer, yank_line_pointer);
+                row_pointer = editor_yank_line(
+                        &con, row_pointer, yank_line_pointer);
                 break;
             case KEY_CTRL + 's':
-                if (con.minibuffer_mode) break;
-                infobar_print(&con, "SEARCH FORWARD:");
-                make_new_row(minibuffer_pointer);
-                activate_minibuffer(&con, minibuffer_pointer, 16);
-                row_pointer = minibuffer_pointer;
-                func_id = SEARCHF_FUNC;                
+                row_pointer = handle_search_forward(&con, row_pointer,
+                                                    minibuffer_pointer);
+                func_id = SEARCHF_FUNC;
             default:
                 /* keybindings with ctrl modifier */
                 if ((unichar > 0) && (unichar <= 26)) {
-                    if (keybinding_ctrl[unichar] != NULL) { 
-                        row_pointer = (*keybinding_ctrl[unichar])(&con, row_pointer, unichar);
+                    if (keybinding_ctrl[unichar] != NULL) {
+                        row_pointer = (*keybinding_ctrl[unichar])(
+                                &con, row_pointer, unichar);
                     } else {
                         if (!con.minibuffer_mode)
                             infobar_print(&con, "unknown keybinding\0");
                     }
-                    continue;            
+                    continue;
                 }
                 /* no modifier */
                 editor_insert_char(&con, row_pointer, unichar);
         }
     }
-    
+
     QUIT:
     ANSI_RESET_SCREEN;
     /* restore terminal settings */
@@ -313,7 +354,13 @@ int main (int argc, char *argv[]) {
         printf("row_length %d\n",  con.row_length);
         printf("margin %d\n",  MARGIN);
         printf("temp_row %d\n",  con.temp_row);
-        printf("buffer_filename %s\n",  con.buffer_filename);        
-    }     
+        printf("buffer_filename %s\n",  con.buffer_filename);
+    }
     return 0;
 }
+
+/* Emacs indentation: 
+ (progn 
+  (c-guess) 
+  (setq indent-tabs-mode nil)
+  (c-set-offset 'case-label '+)) */

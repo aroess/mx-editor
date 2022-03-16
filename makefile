@@ -11,6 +11,6 @@ MAIN = mx
 all: $(MAIN)
 
 
-$(MAIN): 
+$(MAIN):
 	$(CC) $(CFLAGS) $(SRCS) -o $(MAIN) 
 
