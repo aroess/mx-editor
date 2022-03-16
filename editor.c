@@ -390,6 +390,7 @@ readline *editor_kill_to_beginning_of_line(container *con, readline *row_pointer
 
 readline *editor_yank_line(container *con, readline *row_pointer, readline *yank_line_pointer) {
     if (con->minibuffer_mode) return row_pointer;
+    if (yank_line_pointer->buffer == NULL) return row_pointer;
     for (int i = 0; i < yank_line_pointer->line_end; i++) {
         if (yank_line_pointer->buffer[i] == 0x9)
             editor_insert_tab(con, row_pointer);
