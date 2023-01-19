@@ -220,6 +220,12 @@ int main (int argc, char *argv[]) {
                     row_pointer = editor_goto_end_of_document(
                             &con, row_pointer, unichar);
                     break;
+                case 'd':
+                    while (BUFFER[CURSOR] != 32 && CURSOR != LINE_END ) {
+                        row_pointer = editor_delete_forward_char(
+                                &con, row_pointer, unichar);
+                    }
+                    break;
                 case 'g':
                     row_pointer = handle_goto(&con, row_pointer,
                                               minibuffer_pointer);
