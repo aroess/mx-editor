@@ -221,10 +221,8 @@ int main (int argc, char *argv[]) {
                             &con, row_pointer, unichar);
                     break;
                 case 'd':
-                    while (BUFFER[CURSOR] != 32 && CURSOR != LINE_END ) {
-                        row_pointer = editor_delete_forward_char(
-                                &con, row_pointer, unichar);
-                    }
+                    row_pointer = editor_delete_forward_word(
+                            &con, row_pointer, unichar);
                     break;
                 case 'g':
                     row_pointer = handle_goto(&con, row_pointer,
@@ -238,7 +236,7 @@ int main (int argc, char *argv[]) {
                             row_pointer = (*keybinding_alt[unichar])(
                                     &con, row_pointer, unichar);
                     } else {
-                        infobar_print(&con, "unknown keybinding\0");
+                        infobar_print(&con, "Unknown keybinding\0");
                     }
             }
             alt_modifier = FALSE;
@@ -254,6 +252,9 @@ int main (int argc, char *argv[]) {
                         if (unichar == 'n') { infobar_erase(&con); break; }
                     }
                     break;
+                case KEY_CTRL + 'f':
+                    infobar_print(&con, "Please open files from the command line\0");
+                    break;
                 case KEY_CTRL + 's':
                     row_pointer = handle_save(&con, row_pointer,
                                               minibuffer_pointer);
@@ -263,7 +264,7 @@ int main (int argc, char *argv[]) {
                     infobar_print_position(&con);
                     break;
                 default:
-                    infobar_print(&con, "unknown keybinding\0");
+                    infobar_print(&con, "Unknown keybinding\0");
             }
             ctrl_x_modifier = FALSE;
             continue;
