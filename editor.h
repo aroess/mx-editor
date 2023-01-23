@@ -120,6 +120,7 @@ readline* editor_insert_tab                 (container*, readline*);
 readline* editor_insert_char                (container*, readline*, wint_t);
 readline* editor_delete_char                (container*, readline*, wint_t);
 readline* editor_delete_forward_char        (container*, readline*, wint_t);
+readline* editor_delete_forward_word        (container*, readline*, wint_t);
 readline* editor_delete_line                (container*, readline*, wint_t);
 readline* editor_forward_char               (container*, readline*, wint_t);
 readline* editor_backward_char              (container*, readline*, wint_t);
