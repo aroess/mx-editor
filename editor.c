@@ -310,6 +310,52 @@ readline* editor_delete_forward_char(container *con, readline *row_pointer, wint
     return row_pointer;
 }
 
+readline* editor_delete_forward_word(container *con, readline *row_pointer, wint_t unichar) {
+    if (CURSOR == LINE_END) return row_pointer;
+    /* cursor at space */
+    if (BUFFER[CURSOR] == 32) {
+        while (buffer_is_space(BUFFER, CURSOR)) {
+            buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END+1);
+            buffer_set_char(BUFFER, LINE_END, 0);
+            LINE_END--;
+        } 
+        screen_redraw(con, LINE);
+        screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
+        return row_pointer;
+    }
+    /* cursor at tab */
+    if (BUFFER[CURSOR] == 0x9) {
+        do {
+            buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END+1);
+            buffer_set_char(BUFFER, LINE_END, 0);
+            LINE_END--;
+        } while (BUFFER[CURSOR] == TAB_PAD_CHAR);
+        screen_redraw(con, LINE);
+        screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
+        return row_pointer;
+    }
+    /* cursor at char */
+    while (!buffer_is_space(BUFFER, CURSOR) && CURSOR != LINE_END) {
+        /* if we are inside a tab stop delete padding and return */
+        if (BUFFER[CURSOR] == TAB_PAD_CHAR) {
+            do {
+                buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END+1);
+                buffer_set_char(BUFFER, LINE_END, 0);
+                LINE_END--;
+            } while (BUFFER[CURSOR] == TAB_PAD_CHAR);
+            screen_redraw(con, LINE);
+            screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
+            return row_pointer;
+        }
+        buffer_shift_region_left(BUFFER, CUR_ROW, CURSOR, LINE_END+1);
+        buffer_set_char(BUFFER, LINE_END, 0);
+        LINE_END--;
+    } 
+    screen_redraw(con, LINE);
+    screen_set_cursor(CUR_ROW, CURSOR, HPADDING, VPADDING);
+    return row_pointer;
+}
+
 readline* editor_delete_line(container *con, readline *row_pointer, wint_t unichar) {
     if (CUR_ROW == 0) return row_pointer;
     readline *row_pointer_prev;
