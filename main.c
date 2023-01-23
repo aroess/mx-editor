@@ -212,11 +212,11 @@ int main (int argc, char *argv[]) {
                 case BRACKETLEFT:
                     row_pointer = handle_arrow_keys(&con, row_pointer);
                     break;
-                case '<':
+                case ',':
                     row_pointer = editor_goto_beginning_of_document(
                             &con, row_pointer, unichar);
                     break;
-                case '>':
+                case '.':
                     row_pointer = editor_goto_end_of_document(
                             &con, row_pointer, unichar);
                     break;
